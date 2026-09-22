@@ -1,6 +1,6 @@
 # Standalone Windows preview
 
-This is a local-only Electron app with its own room server. It does not connect to SpellTable. The original userscript remains available in `dist`.
+This is an Electron app with its own matchmaking server and local card recognition. It does not connect to SpellTable. Hosting is deferred by the owner; online service behavior is tested using a separate server process on this PC. The original userscript remains available in `dist`.
 
 ## Run
 
@@ -9,6 +9,9 @@ This is a local-only Electron app with its own room server. It does not connect 
 - `npm run desktop:four`: four windows with independent persistent profiles, automatically joined to one table.
 - `npm run desktop:verify`: runs those windows, verifies received video/audio and synchronized state, disconnects/reconnects a player, saves local evidence, exits.
 - `npm run desktop:package`: produces a Windows portable application folder in `release`.
+- `npm run server`: starts the standalone matchmaking service on loopback port 47832.
+- `npm run desktop:verify-online`: verifies keyword matchmaking through that separate local service and recognizes cards in received video. Start the server first.
+- `npm run desktop:package -- --local-media`: personal test build with the owner's footage. Do not publish this build.
 
 Keep the complete portable folder together; the executable depends on its neighboring files. No installer or code signing is provided yet.
 
@@ -18,15 +21,33 @@ Keep the complete portable folder together; the executable depends on its neighb
 
 The local test adds a quiet synthetic audio tone to each loop. Incoming test players are muted at playback to avoid four-window feedback. Receiving audio packets proves transport, not real microphone quality or acoustic echo cancellation.
 
-Card search uses references already gathered for video edits. Frames have not been exhaustively labeled, and no automatic card recognizer has been trained. The inventory samples three times per readable recording; it does not claim every card or every frame has been analyzed.
+Card recognition uses local image features and geometric verification against an installed artwork library. Start it in a room; detections cycle through available video feeds and selecting a detected name opens its reference. Nothing is uploaded for recognition. Current library coverage is limited to the owner's 108 edit-reference card names and alternate artworks. This is not a trained neural model or an exhaustive Magic card library. No-match is an explicit result; accuracy on unseen footage is still being evaluated.
+
+To prepare recognition on a development Windows PC:
+
+```powershell
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r recognition/requirements.txt
+.venv/Scripts/python.exe recognition/import_variants.py
+.venv/Scripts/python.exe recognition/engine.py --index .recognition/index --build "$env:USERPROFILE/Videos" --additional .recognition
+.venv/Scripts/python.exe -m PyInstaller --noconfirm --onedir --name recognizer --distpath .recognition/runtime --workpath .recognition/build recognition/engine.py
+```
+
+The importer is resumable and obtains public Scryfall artwork at a paced request rate. Private recordings are never sent to Scryfall. The packaged worker includes its runtime, so the resulting Windows app does not require Python installed separately. References retain source attribution URLs. Source-frame candidates from `recognition/scan_footage.py` must be reviewed before treating them as labels.
 
 ## Implemented
 
-Private room creation/codes; up to four seats; peer-to-peer video and audio; life and poison; commander/deck loadout persistence; validated Moxfield sharing to room chat; local card-reference search; reconnection with seat and counter retention. Four-window test uses separate browser sessions/renderers inside one desktop host process.
+Private/public rooms; four-seat keyword auto-match queue and cancellation; peer-to-peer video/audio; life and poison; commander/deck persistence; validated Moxfield chat sharing; local card-reference search and image recognition; host locking/removal; reconnection with seat and counter retention. Four-window test uses separate sessions/renderers inside one desktop host process.
 
 ## Boundaries
 
-Server binds only to 127.0.0.1. No online matchmaking, TURN service, accounts, internet deployment, host moderation, commander damage, or installer yet. Room state survives player reconnects, but not server shutdown. Disconnected seats stay reserved until the player reconnects and leaves; a production room-expiry policy remains to be implemented. Closing the process hosting the local server ends its rooms. Camera mode uses the default Windows camera/microphone; hardware selection and real-device verification remain pending.
+Server binds to 127.0.0.1 by default. No hosted endpoint, verified cross-household connectivity, user accounts, commander damage, or installer yet. Room state survives player reconnects but not server shutdown. Disconnected seats expire after two minutes; rooms expire after twelve hours. Guest removal blocks that session identity, not a person who resets their profile. Camera mode uses the default Windows devices; real camera/microphone quality remains unverified.
+
+## Deployable matchmaking service
+
+`server/start.js` exposes only a health endpoint and WebSocket signaling/matchmaking; it serves no local footage or recognition data. `server/Dockerfile` is a deployment recipe (container build not tested on this machine). Terminate TLS at the host and use a `wss://` address in the desktop app. Only loopback addresses may use plaintext `ws://`.
+
+Environment settings: `HOST`, `PORT`, `ALLOWED_ORIGINS` (comma-separated; desktop origin defaults to `http://127.0.0.1:47831`), `STUN_URLS`, `TURN_URLS`, and `TURN_SECRET`. TURN credentials are short-lived HMAC credentials for a compatible relay such as coturn; the shared secret remains server-side. No relay provider is currently configured. The app refreshes credentials during long sessions. Issuing credentials is tested; actual relay transport is not.
 
 ## Visual implementation
 

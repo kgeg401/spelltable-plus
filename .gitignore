@@ -8,3 +8,7 @@ node_modules/
 .local-media/
 release/
 desktop-test-results/
+.venv/
+.recognition/
+__pycache__/
+*.spec

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A local-first SpellTable companion userscript: deck loadouts and keyword matchmaking.",
+  "description": "Standalone Commander webcam desktop app with matchmaking and local card recognition",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.js",
@@ -12,7 +12,9 @@
     "desktop": "electron .",
     "desktop:four": "electron . --four-players",
     "desktop:verify": "electron . --four-players --verify",
-    "desktop:package": "electron-packager . SpellTablePlus --platform=win32 --arch=x64 --out=release --overwrite --ignore=release --ignore=.local-media --ignore=desktop-test-results"
+    "desktop:package": "node scripts/package-desktop.mjs",
+    "server": "node server/start.js",
+    "desktop:verify-online": "electron . --four-players --verify --verify-matchmaking --verify-recognition --server=ws://127.0.0.1:47832"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
