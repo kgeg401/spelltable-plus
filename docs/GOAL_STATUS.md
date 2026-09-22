@@ -1,12 +1,12 @@
 # Matchmaking and card recognition
 
-Active objective: finish online matchmaking and automatic card recognition. The user explicitly deferred hosting on September 22; build and verify the deployable service locally. Do not call cross-household connectivity verified until deployed and tested.
+Completed local-preview objective: implement and verify matchmaking and automatic card recognition. The user explicitly deferred hosting on September 22; build and verify the deployable service locally. Do not call cross-household connectivity verified until deployed and tested.
 
 ## Current evidence
 
 - Server-authoritative public room listing, keyword inclusion/exclusion, atomic four-seat queue, cancellation, private tables, host lock/remove, hashed guest identities, reconnect grace, room expiry, heartbeat and rate limits.
 - Separate Node service with origin allowlist and TURN shared-secret credential issuance; desktop accepts configurable WSS address and loopback WS for tests.
-- Twenty automated JavaScript tests passed, including queue races, cancellation, private-room exclusion, moderation, seat expiration, and credential isolation.
+- Twenty-two automated JavaScript tests passed, including queue races, cancellation, private-room exclusion, moderation, seat expiration, and credential isolation.
 - Four desktop profiles joined by keyword through a separate local service process. All twelve directed incoming video streams decoded and all twelve audio streams received packets. Counters/chat/commanders and reconnection passed.
 - Local OpenCV recognizer performs feature retrieval plus homography verification, rejects weak geometry, and processes desktop video via a sandboxed IPC bridge to a bundled worker.
 - Original reference set: 108 cards. Expanded set: 412 artwork variants from existing edit references plus Scryfall alternate artwork.
@@ -17,13 +17,18 @@ Active objective: finish online matchmaking and automatic card recognition. The 
 - Added a lobby decklist/name importer that downloads artwork and extends a local atomic library bundle; an Ornithopter import added 11 references and an invalid name returned an explicit error. The packaged application verified import persistence across a worker restart.
 - Visually audited 32 distinct-name low-inlier detections against reference artwork: 28 visually consistent, four indeterminate under blur/glare, no definite mismatch. This selected audit does not establish general precision or recall; private audit entries are `.recognition/audit/manifest.json`.
 
-## Remaining completion gates
+## Latest verification
 
-- Inspect the broad footage-scan candidates, curate unseen positive and negative scenes, measure localization precision and recall. Investigate misses, alternate artwork, blur, glare, occlusion and low-resolution cards. Do not count machine labels as independent ground truth.
-- Improve practical library coverage; current recognition is limited to installed artwork, not a preinstalled database of all Magic cards. The importer lets users add their decks; verify a full representative deck import and evaluate recognition afterward.
-- Finish recognition interaction polish and stable per-seat results; verify changing camera sources and late media start across clients.
-- Repeat final packaged verification after any subsequent engine, network, or UI changes.
-- Audit queue/network edge cases and run a longer soak test. Verify TURN relay transport when a relay becomes available. Hosting and real cross-network checks are deferred by the user, not silently claimed complete.
+- Fixed camera-off joins and late media start using negotiated bidirectional tracks. Three stop/start cycles preserved incoming feeds and resumed outgoing feeds.
+- Recognition results are grouped by seat; weaker matches require consecutive observations, old results expire, and leaving seats are removed. Unit checks cover misses, expiry and seat isolation.
+- Independently labeled 12 target cards in selected regions at three previously untested recording timestamps before inference. Result: 11 true positives, zero false positives inside those regions, one missed small Moggcatcher (IoU threshold 0.35). This is a small region-level evaluation, not full-frame or all-card recall. Private labels and report remain in `.recognition`.
+- Packaged Windows executable passed actual coturn TURN-over-TCP relay transport with generated HMAC credentials: all twelve directed connections used relay candidates. A 120-second soak checked every five seconds that all twelve video streams and twelve audio streams continued advancing. Camera lifecycle, keyword matchmaking, state sync, reconnect and recognition from received footage also passed.
+
+- The packaged worker imported the owner's saved 100-card Quandrix list (89 unique names), adding 1,175 artwork references for a total of 1,587 in an isolated test library. No import errors occurred; every name or combined-card face was present after restart, and recognition still returned matches from recorded footage. This artwork-heavy import took about nine minutes.
+
+## Release boundaries
+
+Hosting and real cross-network checks are deferred by the user. Real microphone/camera quality and a multi-hour public session remain unverified. Recognition only covers installed artwork and can miss small, blurred, reflective or occluded cards. The starter is a preview, not an exhaustive card database. Large imports can take several minutes, especially basic lands with many artwork variants.
 
 ## Resumable work
 

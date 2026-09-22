@@ -11,7 +11,7 @@ export async function startServer(root, port=47831, mediaRoot=path.join(root,'.l
    const url=new URL(req.url,'http://localhost');let file;
    if(url.pathname==='/cards.json') file=path.join(mediaRoot,'cards.json');
    else if(/^\/media\/player-[1-4]\.mp4$/.test(url.pathname)) file=path.join(mediaRoot,path.basename(url.pathname));
-   else if(['/','/app.js','/style.css'].includes(url.pathname)) file=path.join(root,'desktop',url.pathname==='/'?'index.html':url.pathname.slice(1));
+   else if(['/','/app.js','/style.css','/recognition-state.js'].includes(url.pathname)) file=path.join(root,'desktop',url.pathname==='/'?'index.html':url.pathname.slice(1));
    else {res.writeHead(404).end();return;}
    const size=(await stat(file)).size;
    const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.mp4':'video/mp4'}[path.extname(file)];

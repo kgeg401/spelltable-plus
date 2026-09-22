@@ -4,7 +4,7 @@
 
 The project now includes its own desktop app and local room server. Run `npm run desktop` or `npm run desktop:four` for four isolated player windows using local footage. See [desktop setup, tested features and limitations](docs/DESKTOP.md).
 
-Verified locally: keyword matchmaking through a separate server process, twelve incoming video/audio streams, synchronized state, reconnects, fifth-seat rejection, and card detections from received video. Hosting is deferred. Recognition runs locally against installed artwork; broader accuracy and library coverage are still being evaluated. See [current completion gates](docs/GOAL_STATUS.md).
+Verified locally: keyword matchmaking through a separate server process, twelve incoming video/audio streams through coturn relay transport, synchronized state, reconnects, camera stop/start, fifth-seat rejection, and card detections from received video. The packaged app passed a two-minute continuous media check. Hosting is deferred. Recognition runs locally against installed artwork; broader accuracy and library coverage are still being evaluated. See [verification and release boundaries](docs/GOAL_STATUS.md).
 
 ## Original userscript
 

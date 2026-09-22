@@ -11,6 +11,9 @@ const matchVerify=process.argv.includes('--verify-matchmaking'),recognitionVerif
 const serverAddress=process.argv.find(arg=>arg.startsWith('--server='))?.slice(9);
 const lobbyCapture=process.argv.includes('--capture-lobby');
 const libraryVerify=process.argv.includes('--verify-library');
+const mediaVerify=process.argv.includes('--verify-media');
+const relayVerify=process.argv.includes('--verify-relay');
+const soakSeconds=Math.max(0,Math.min(900,Number(process.argv.find(arg=>arg.startsWith('--soak-seconds='))?.slice(15)||0)));
 app.whenReady().then(async()=>{
 const recognition=new RecognitionWorker(root,app.isPackaged?process.resourcesPath:null,app.isPackaged?path.join(app.getPath('userData'),'recognition-index'):null);
 const trusted=event=>{if(!event.senderFrame?.url.startsWith('http://127.0.0.1:47831/'))throw Error('Untrusted frame');};
@@ -27,6 +30,8 @@ for(let i=1;i<=(testing?4:1);i++){
  const win=new BrowserWindow({width:1440,height:940,minWidth:960,minHeight:700,title:`SpellTable Plus${testing?' — Player '+i:''}`,backgroundColor:'#23262b',webPreferences:{partition,contextIsolation:true,nodeIntegration:false,sandbox:true,preload:path.join(root,'desktop/preload.cjs'),backgroundThrottling:false}});
  win.removeMenu();win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('http://127.0.0.1:47831/'))event.preventDefault();});
  const query=new URLSearchParams();if(testing){query.set('test','1');query.set('player',i);}if(serverAddress)query.set('server',serverAddress);
+ if(mediaVerify)query.set('late-media','1');
+ if(relayVerify)query.set('relay','1');
  await win.loadURL(`http://127.0.0.1:47831/?${query}`);windows.push(win);
 }
 const evaluate=(i,code)=>windows[i].webContents.executeJavaScript(code);
@@ -39,6 +44,10 @@ if(testing){
   await evaluate(0,'tableTest.join(true)');
   const code=await until(()=>evaluate(0,'tableTest.getState()?.room'),'room');
   for(let i=1;i<4;i++)await evaluate(i,matchVerify?"document.getElementById('include').value='BR3 no mox';tableTest.queue()":`tableTest.join(false,${JSON.stringify(code)})`);
+  if(mediaVerify){
+   await until(async()=>{const all=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.peerStates()')));return all.every(states=>states.length===3&&states.every(state=>state==='connected'));},'camera-off peers connected');
+   for(let i=3;i>=0;i--)await evaluate(i,'tableTest.startMedia()');
+  }
   await until(async()=>{const all=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')));return all.every(stats=>stats.filter(s=>s.kind==='video'&&s.frames>5).length===3&&stats.filter(s=>s.kind==='audio'&&s.packets>5).length===3)&&all;},'twelve incoming video/audio streams');
   if(verify){
    await evaluate(0,"tableTest.send({type:'counter',field:'life',delta:-1});tableTest.send({type:'chat',text:'Four-player verification'});tableTest.send({type:'loadout',commander:'Krenko, Mob Boss',deck:'Test deck',link:''})");
@@ -46,7 +55,28 @@ if(testing){
    await evaluate(3,'tableTest.disconnect()');await wait(2500);
    await until(async()=>{const stats=await evaluate(3,'tableTest.stats()');return stats.filter(s=>s.kind==='video'&&s.frames>5).length===3;},'reconnect video');
    const result={time:new Date().toISOString(),checks:['four isolated desktop profiles','12 inbound video streams decoded','12 inbound audio streams received','life, commander and chat synchronized','disconnect and video reconnect'],stats:await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')))};
+   if(mediaVerify){
+    result.checks.push('four camera-off players connected and started media after joining');
+    for(let cycle=0;cycle<3;cycle++){
+     const before=await evaluate(1,'tableTest.stats()');await evaluate(1,'tableTest.stopMedia()');await wait(900);
+     const during=await evaluate(1,'tableTest.stats()');if(!during.filter(s=>s.kind==='video').every(s=>s.frames>before.find(p=>p.peer===s.peer&&p.kind==='video').frames))throw Error('Stopping camera interrupted incoming video');
+     await evaluate(1,'tableTest.startMedia()');await wait(900);
+     const baseline=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')));await wait(900);
+     const after=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')));
+     if(!after.every((stats,i)=>stats.filter(s=>s.kind==='video').length===3&&stats.filter(s=>s.kind==='video').every(s=>s.frames>baseline[i].find(p=>p.peer===s.peer&&p.kind==='video')?.frames)))throw Error('Video failed to advance after camera restart');
+    }
+    result.checks.push('three camera stop/start cycles preserved incoming video and resumed outgoing video');
+   }
    if(matchVerify){result.checks.push('three keyword-queued players joined via separate matchmaking process');result.matchmakingServer=serverAddress;}
+   if(soakSeconds){
+    let previous=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')));const samples=[];
+    for(let elapsed=0;elapsed<soakSeconds;elapsed+=5){await wait(5000);const current=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.stats()')));
+     if(!current.every((stats,i)=>stats.filter(s=>s.kind==='video').length===3&&stats.filter(s=>s.kind==='video'||s.kind==='audio').every(s=>{const old=previous[i].find(p=>p.peer===s.peer&&p.kind===s.kind);return old&&(s.kind==='video'?s.frames>old.frames:s.packets>old.packets);})))throw Error('A media stream stalled during the soak test');
+     samples.push({seconds:elapsed+5,videoStreams:12,audioStreams:12});previous=current;if((elapsed+5)%30===0)console.log(`Soak ${elapsed+5}/${soakSeconds}s: all streams advancing`);
+    }
+    result.soak={seconds:soakSeconds,samples};result.checks.push(`${soakSeconds}-second soak: all twelve video/audio streams advanced every five seconds`);
+   }
+   if(relayVerify){result.routes=await Promise.all(windows.map((_,i)=>evaluate(i,'tableTest.routes()')));if(!result.routes.every(routes=>routes.length===3&&routes.every(route=>route.local==='relay'&&route.remote==='relay'&&route.bytesReceived>0)))throw Error('Not all connections used relay transport');result.checks.push('all twelve directed connections used TURN relay candidates with received data');}
    if(recognitionVerify){
     const matches=await evaluate(0,"(async()=>{let matches=[];for(const video of document.querySelectorAll('.seat video')){if(!video.videoWidth)continue;const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);const result=await cardRecognition.identify(c.toDataURL('image/jpeg',.95).split(',')[1]);matches.push(...result.matches);}return matches;})()");
     if(!matches.length)throw Error('No cards recognized in live desktop streams');result.recognized=matches;result.checks.push('cards recognized from live received desktop video');
@@ -62,7 +92,7 @@ if(testing){
    }
    await mkdir(evidenceRoot,{recursive:true});await writeFile(path.join(evidenceRoot,'verification.json'),JSON.stringify(result,null,2));await writeFile(path.join(evidenceRoot,'desktop.png'),(await windows[0].webContents.capturePage()).toPNG());console.log('DESKTOP VERIFICATION PASSED');app.quit();
   }
- }catch(error){console.error(error);if(verify)app.exit(1);}
+ }catch(error){console.error(error);await mkdir(evidenceRoot,{recursive:true});await writeFile(path.join(evidenceRoot,'failure.json'),JSON.stringify(await Promise.all(windows.map((_,i)=>evaluate(i,'(async()=>({status:document.getElementById("status").textContent,media:window.mediaDebug?.(),stats:await tableTest.stats(),routes:await tableTest.routes()}))()'))),null,2));if(verify)app.exit(1);}
 }
 app.on('window-all-closed',()=>app.quit());
 if(lobbyCapture){await wait(800);await mkdir(evidenceRoot,{recursive:true});await writeFile(path.join(evidenceRoot,'lobby.png'),(await windows[0].webContents.capturePage()).toPNG());app.quit();}

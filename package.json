@@ -14,7 +14,9 @@
     "desktop:verify": "electron . --four-players --verify",
     "desktop:package": "node scripts/package-desktop.mjs",
     "server": "node server/start.js",
-    "desktop:verify-online": "electron . --four-players --verify --verify-matchmaking --verify-recognition --server=ws://127.0.0.1:47832"
+    "desktop:verify-online": "electron . --four-players --verify --verify-matchmaking --verify-recognition --server=ws://127.0.0.1:47832",
+    "desktop:verify-media": "electron . --four-players --verify --verify-media",
+    "desktop:verify-relay": "node scripts/verify-relay.mjs"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",

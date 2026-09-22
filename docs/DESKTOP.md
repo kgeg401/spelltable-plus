@@ -12,6 +12,8 @@ This is an Electron app with its own matchmaking server and local card recogniti
 - `npm run server`: starts the standalone matchmaking service on loopback port 47832.
 - `npm run desktop:verify-online`: verifies keyword matchmaking through that separate local service and recognizes cards in received video. Start the server first.
 - `npm run desktop:package -- --local-media`: personal test build with the owner's footage. Do not publish this build.
+- `npm run desktop:verify-media`: camera-off joins, late media start, and three camera stop/start cycles.
+- `npm run desktop:verify-relay -- --packaged --soak-seconds=120`: four packaged clients through a local coturn relay, with continuous stream checks. Requires the test runtime below.
 
 Keep the complete portable folder together; the executable depends on its neighboring files. No installer or code signing is provided yet.
 
@@ -21,7 +23,7 @@ Keep the complete portable folder together; the executable depends on its neighb
 
 The local test adds a quiet synthetic audio tone to each loop. Incoming test players are muted at playback to avoid four-window feedback. Receiving audio packets proves transport, not real microphone quality or acoustic echo cancellation.
 
-Card recognition uses local image features and geometric verification against an installed artwork library. Start it in a room; detections cycle through available video feeds and selecting a detected name opens its reference. Nothing is uploaded for recognition. The starter library covers the owner's 108 edit-reference card names and alternate artworks. Expand it using **Add cards to recognition** in the lobby: paste names or a decklist and download public reference artwork from Scryfall. Imports persist in the app's user-data folder. This is not a trained neural model or a preinstalled exhaustive Magic card library. No-match is an explicit result; accuracy on unseen footage is still being evaluated.
+Card recognition uses local image features and geometric verification against an installed artwork library. Start it in a room; detections cycle through available video feeds and selecting a detected name opens its reference. Nothing is uploaded for recognition. The starter library covers the owner's 108 edit-reference card names and alternate artworks. Expand it using **Add cards to recognition** in the lobby: paste names or a decklist and download public reference artwork from Scryfall. Imports persist in the app's user-data folder. A full 100-card test deck (89 unique names) added 1,175 references with no errors and retained coverage after a packaged-worker restart. That artwork-heavy import took about nine minutes. This is not a trained neural model or a preinstalled exhaustive Magic card library. Results stay grouped by player and expire after 20 seconds; weak geometric matches need repeated observations. No-match is explicit. In 12 manually labeled targets within selected regions at three previously untested timestamps, 11 cards were localized correctly, one small card was missed, and no false matches occurred inside those regions. This small scoped check does not establish whole-frame or general accuracy.
 
 To prepare recognition on a development Windows PC:
 
@@ -47,10 +49,26 @@ Server binds to 127.0.0.1 by default. No hosted endpoint, verified cross-househo
 
 `server/start.js` exposes only a health endpoint and WebSocket signaling/matchmaking; it serves no local footage or recognition data. `server/Dockerfile` is a deployment recipe (container build not tested on this machine). Terminate TLS at the host and use a `wss://` address in the desktop app. Only loopback addresses may use plaintext `ws://`.
 
-Environment settings: `HOST`, `PORT`, `ALLOWED_ORIGINS` (comma-separated; desktop origin defaults to `http://127.0.0.1:47831`), `STUN_URLS`, `TURN_URLS`, and `TURN_SECRET`. TURN credentials are short-lived HMAC credentials for a compatible relay such as coturn; the shared secret remains server-side. No relay provider is currently configured. The app refreshes credentials during long sessions. Issuing credentials is tested; actual relay transport is not.
+Environment settings: `HOST`, `PORT`, `ALLOWED_ORIGINS` (comma-separated; desktop origin defaults to `http://127.0.0.1:47831`), `STUN_URLS`, `TURN_URLS`, and `TURN_SECRET`. TURN credentials are short-lived HMAC credentials for a compatible relay such as coturn; the shared secret remains server-side. No hosted relay provider is configured. The app refreshes credentials during long sessions. Actual relay transport was verified with local coturn: all twelve directed connections selected relay candidates, received video/audio, and advanced throughout a 120-second packaged test. This does not establish cross-household connectivity.
 
 ## Visual implementation
 
 Compact game-client design: gunmetal #23262b, nearblack #17191d, amber #dfa64a, Segoe UI, 2px control corners, 8px board gutters. Existing plain JavaScript conventions are retained.
 
 Compared concept and captured Electron screen: 2x2 board and sidebar match; compact toolbar and footer match; amber actions and flat surfaces match; 13px controls are explicit; live media retains full frame rather than clipping cards. Intentional differences: real recording loops replace concept imagery, test identities replace invented player names, Windows supplies the titlebar, controls reflect actual media state, unsupported decorative settings are omitted. Tested at 1440x940 window size. Native Electron capture is used because the deliverable is the desktop app.
+
+## Local relay test runtime
+
+The optional test harness uses an existing Ubuntu 24.04 WSL distribution. It extracts coturn and its dependencies into the gitignored `.recognition/coturn` directory, without installing a system service. In Ubuntu, from the project directory:
+
+```sh
+sh scripts/prepare-relay.sh "$PWD/.recognition/coturn"
+```
+
+Then in Windows PowerShell, from the same project directory:
+
+```powershell
+npm run desktop:verify-relay -- --packaged --soak-seconds=120
+```
+
+The helper expects the WSL distribution name `Ubuntu`. The harness binds loopback only, generates its own temporary shared secret, starts a separate matchmaking service, and stops the relay afterward. The app itself does not require WSL. Development evidence is saved in `desktop-test-results`; packaged evidence is beside the executable. Private footage is needed for these recorded-media checks.

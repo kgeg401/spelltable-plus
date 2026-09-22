@@ -73,6 +73,7 @@ export function attachMatchmaking(server,options={}) {
     const ctx=ws.context;if(!ctx)throw Error('Join a table first.');const {room,player}=ctx;
     if(player.ws!==ws)throw Error('Session replaced.');
     if(m.type==='ice-refresh'){credentials(ws);return;}
+    if(m.type==='media'){player.media={video:m.video===true,audio:m.audio===true};broadcast(room);return;}
     if(m.type==='signal'){const target=room.players.get(m.to);if(target?.online&&m.data&&JSON.stringify(m.data).length<50000)send(target.ws,{type:'signal',from:player.id,data:m.data});return;}
     if(m.type==='counter'){if(!['life','poison'].includes(m.field)||![1,-1].includes(m.delta))throw Error('Invalid counter change.');player[m.field]=Math.max(m.field==='life'?-999:0,Math.min(999,player[m.field]+m.delta));}
     else if(m.type==='loadout'){const link=moxfieldURL(m.link||'');player.commander=text(m.commander,120);player.deck=text(m.deck,80);player.link=link;}
