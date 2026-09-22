@@ -8,7 +8,20 @@
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.js",
     "dev": "node scripts/serve.mjs",
-    "check": "npm test && npm run build"
+    "check": "npm test && npm run build",
+    "desktop": "electron .",
+    "desktop:four": "electron . --four-players",
+    "desktop:verify": "electron . --four-players --verify",
+    "desktop:package": "electron-packager . SpellTablePlus --platform=win32 --arch=x64 --out=release --overwrite --ignore=release --ignore=.local-media --ignore=desktop-test-results"
   },
-  "devDependencies": { "esbuild": "^0.25.0", "jsdom": "^26.0.0" }
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^44.4.3",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
+  "main": "desktop/main.js"
 }

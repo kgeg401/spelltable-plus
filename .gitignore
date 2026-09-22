@@ -4,3 +4,7 @@ node_modules/
 *.log
 .env*
 !.env.example
+
+.local-media/
+release/
+desktop-test-results/

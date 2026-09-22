@@ -1,5 +1,13 @@
 # SpellTable Plus
 
+## Standalone Windows app — local preview
+
+The project now includes its own desktop app and local room server. Run `npm run desktop` or `npm run desktop:four` for four isolated player windows using local footage. See [desktop setup, tested features and limitations](docs/DESKTOP.md).
+
+Verified locally: 12 incoming video streams, 12 incoming audio streams, synchronized life/commander/chat, reconnection, and rejection of a fifth seat. This is a local prototype; internet matchmaking and automatic card recognition are not implemented.
+
+## Original userscript
+
 A Tampermonkey userscript for a cleaner SpellTable lobby, saved Commander loadouts, Moxfield sharing, and keyword-based auto-join.
 
 **Early release:** live lobby discovery and filtering have been checked on SpellTable. Room entry and commander selection have been exercised in a local simulation, not an actual multiplayer room. English SpellTable UI is required for the current adapters.
