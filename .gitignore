@@ -1,0 +1,6 @@
+node_modules/
+.research/
+.qa/
+*.log
+.env*
+!.env.example

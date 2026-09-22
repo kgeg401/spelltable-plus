@@ -1,0 +1,14 @@
+{
+  "name": "spelltable-plus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first SpellTable companion userscript: deck loadouts and keyword matchmaking.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js",
+    "dev": "node scripts/serve.mjs",
+    "check": "npm test && npm run build"
+  },
+  "devDependencies": { "esbuild": "^0.25.0", "jsdom": "^26.0.0" }
+}
