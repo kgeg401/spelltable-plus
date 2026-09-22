@@ -13,11 +13,14 @@ Active objective: finish online matchmaking and automatic card recognition. The 
 - Four development recognition checks passed: blank rejection, non-card rejection, rotation/perspective localization, and a labeled real development frame. These are not general accuracy measurements.
 - Desktop end-to-end verification returned card candidates from real recorded playmat video transmitted over WebRTC.
 - The final packaged Windows executable passed separate-process keyword matchmaking, all twelve video/audio streams, synchronized state, reconnect, and recognition from received footage. The worker runs without a system Python dependency.
+- Broad scan completed: 409 frames across 11 readable recordings, 729 machine candidates spanning 61 names, no processing errors. These counts are not accuracy estimates. One source MP4 remains unreadable.
+- Added a lobby decklist/name importer that downloads artwork and extends a local atomic library bundle; an Ornithopter import added 11 references and an invalid name returned an explicit error. The packaged application verified import persistence across a worker restart.
+- Visually audited 32 distinct-name low-inlier detections against reference artwork: 28 visually consistent, four indeterminate under blur/glare, no definite mismatch. This selected audit does not establish general precision or recall; private audit entries are `.recognition/audit/manifest.json`.
 
 ## Remaining completion gates
 
 - Inspect the broad footage-scan candidates, curate unseen positive and negative scenes, measure localization precision and recall. Investigate misses, alternate artwork, blur, glare, occlusion and low-resolution cards. Do not count machine labels as independent ground truth.
-- Expand library coverage and give users a practical way to add their deck/card references. Current recognition is limited to installed artwork; it is not all of Magic.
+- Improve practical library coverage; current recognition is limited to installed artwork, not a preinstalled database of all Magic cards. The importer lets users add their decks; verify a full representative deck import and evaluate recognition afterward.
 - Finish recognition interaction polish and stable per-seat results; verify changing camera sources and late media start across clients.
 - Repeat final packaged verification after any subsequent engine, network, or UI changes.
 - Audit queue/network edge cases and run a longer soak test. Verify TURN relay transport when a relay becomes available. Hosting and real cross-network checks are deferred by the user, not silently claimed complete.

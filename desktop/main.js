@@ -10,9 +10,13 @@ const testing=process.argv.includes('--four-players'),verify=process.argv.includ
 const matchVerify=process.argv.includes('--verify-matchmaking'),recognitionVerify=process.argv.includes('--verify-recognition');
 const serverAddress=process.argv.find(arg=>arg.startsWith('--server='))?.slice(9);
 const lobbyCapture=process.argv.includes('--capture-lobby');
+const libraryVerify=process.argv.includes('--verify-library');
 app.whenReady().then(async()=>{
-const recognition=new RecognitionWorker(root,app.isPackaged?process.resourcesPath:null);
-ipcMain.handle('recognize-frame',(event,image)=>{if(!event.senderFrame?.url.startsWith('http://127.0.0.1:47831/'))throw Error('Untrusted frame');return recognition.recognize(image);});
+const recognition=new RecognitionWorker(root,app.isPackaged?process.resourcesPath:null,app.isPackaged?path.join(app.getPath('userData'),'recognition-index'):null);
+const trusted=event=>{if(!event.senderFrame?.url.startsWith('http://127.0.0.1:47831/'))throw Error('Untrusted frame');};
+ipcMain.handle('recognize-frame',(event,image)=>{trusted(event);return recognition.recognize(image);});
+ipcMain.handle('recognition-add-cards',(event,names)=>{trusted(event);return recognition.addCards(names);});
+ipcMain.handle('recognition-library',event=>{trusted(event);return recognition.library();});
 app.on('before-quit',()=>recognition.close());
 const evidenceRoot=app.isPackaged?path.join(path.dirname(app.getPath('exe')),'desktop-test-results'):path.join(root,'desktop-test-results');
 let backend;try{backend=await startServer(root,47831,app.isPackaged?path.join(process.resourcesPath,'local-media'):undefined);}catch(error){if(error.code!=='EADDRINUSE')throw error;}
@@ -47,6 +51,14 @@ if(testing){
     const matches=await evaluate(0,"(async()=>{let matches=[];for(const video of document.querySelectorAll('.seat video')){if(!video.videoWidth)continue;const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);const result=await cardRecognition.identify(c.toDataURL('image/jpeg',.95).split(',')[1]);matches.push(...result.matches);}return matches;})()");
     if(!matches.length)throw Error('No cards recognized in live desktop streams');result.recognized=matches;result.checks.push('cards recognized from live received desktop video');
     await evaluate(0,"document.getElementById('recognize').click()");await wait(2200);
+   }
+   if(libraryVerify){
+    await evaluate(0,"if(document.getElementById('recognize').textContent.startsWith('Stop'))document.getElementById('recognize').click()");await wait(1000);
+    const imported=await evaluate(0,"cardRecognition.addCards(['Ornithopter'])");
+    if(imported.errors.length)throw Error('Card library import failed');
+    recognition.close();await wait(500);
+    const library=await evaluate(0,'cardRecognition.library()');if(!library.cards.some(card=>card.name==='Ornithopter'))throw Error('Imported reference did not persist');
+    result.checks.push('new card artwork import persisted across worker restart');result.imported=imported.added;
    }
    await mkdir(evidenceRoot,{recursive:true});await writeFile(path.join(evidenceRoot,'verification.json'),JSON.stringify(result,null,2));await writeFile(path.join(evidenceRoot,'desktop.png'),(await windows[0].webContents.capturePage()).toPNG());console.log('DESKTOP VERIFICATION PASSED');app.quit();
   }

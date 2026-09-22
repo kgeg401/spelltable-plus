@@ -1,5 +1,5 @@
 """Local SIFT retrieval with geometric verification; no frames leave the PC."""
-import argparse, base64, json, pathlib, sys, time
+import argparse, base64, json, pathlib, sys, time, urllib.request, urllib.parse, os
 import cv2
 import numpy as np
 
@@ -25,7 +25,7 @@ def build_index(videos, output, additional=None):
             kp,desc=features(image,800)
             if desc is None:continue
             index=len(records)
-            records.append({'name':card['name'],'id':card.get('id',key),'oracle_id':card.get('oracle_id'),'url':card.get('scryfall_uri'),'width':244,'height':340,'source':str(source)})
+            records.append({'name':card['name'],'id':card.get('id',key),'illustration_id':card.get('illustration_id'),'oracle_id':card.get('oracle_id'),'url':card.get('scryfall_uri'),'text':card.get('oracle_text',''),'type':card.get('type_line',''),'width':244,'height':340,'source':str(source)})
             descriptors.append(desc);points.extend([p.pt for p in kp]);owners.extend([index]*len(kp))
     output=pathlib.Path(output);output.mkdir(parents=True,exist_ok=True)
     np.savez_compressed(output/'features.npz',descriptors=np.vstack(descriptors),points=np.array(points,dtype=np.float32),owners=np.array(owners,dtype=np.int32))
@@ -34,11 +34,48 @@ def build_index(videos, output, additional=None):
 
 class Recognizer:
     def __init__(self,index):
-        index=pathlib.Path(index);self.cards=json.loads((index/'cards.json').read_text())
-        data=np.load(index/'features.npz',allow_pickle=False)
+        index=pathlib.Path(index);self.index=index;self.cards=json.loads((index/'cards.json').read_text())
+        data=np.load(index/('library.npz' if (index/'library.npz').exists() else 'features.npz'),allow_pickle=False)
+        if 'cards' in data:self.cards=json.loads(str(data['cards']))
         self.descriptors=data['descriptors'];self.points=data['points'];self.owners=data['owners']
+        self.train()
+
+    def train(self):
         self.matcher=cv2.FlannBasedMatcher(dict(algorithm=1,trees=5),dict(checks=80))
         self.matcher.add([self.descriptors]);self.matcher.train()
+
+    def add_cards(self,names):
+        if not isinstance(names,list) or not 1<=len(names)<=100:raise ValueError('Add between 1 and 100 card names.')
+        added=[];errors=[]
+        def fetch(url):
+            request=urllib.request.Request(url,headers={'User-Agent':'SpellTablePlus/0.2 (desktop card reference import)','Accept':'application/json'})
+            with urllib.request.urlopen(request,timeout=20) as response:return response.read()
+        seen={(card['name'],card.get('illustration_id') or card['id']) for card in self.cards}
+        for name in dict.fromkeys(names):
+            if not isinstance(name,str) or not name.strip() or len(name)>200:errors.append({'name':str(name)[:200],'error':'Invalid card name'});continue
+            try:
+                url='https://api.scryfall.com/cards/search?unique=art&include_extras=true&q='+urllib.parse.quote('!"'+name.replace('"','')+'"')
+                while url:
+                    data=json.loads(fetch(url));time.sleep(.15)
+                    for card in data.get('data',[]):
+                        faces=[card] if card.get('image_uris') else card.get('card_faces',[])
+                        for face in faces:
+                            identity=(face.get('name',card['name']),face.get('illustration_id') or card['id'])
+                            image_url=face.get('image_uris',{}).get('normal')
+                            if identity in seen or not image_url:continue
+                            image=cv2.imdecode(np.frombuffer(fetch(image_url),np.uint8),cv2.IMREAD_COLOR);time.sleep(.12)
+                            if image is None:continue
+                            kp,desc=features(cv2.resize(image,(244,340),interpolation=cv2.INTER_AREA),800)
+                            if desc is None:continue
+                            owner=len(self.cards);record={'name':identity[0],'id':card['id'],'illustration_id':face.get('illustration_id'),'oracle_id':card.get('oracle_id'),'url':card.get('scryfall_uri'),'text':face.get('oracle_text',''),'type':face.get('type_line',''),'width':244,'height':340}
+                            self.cards.append(record);added.append(record);seen.add(identity)
+                            self.descriptors=np.vstack([self.descriptors,desc]);self.points=np.vstack([self.points,np.array([p.pt for p in kp],np.float32)]);self.owners=np.concatenate([self.owners,np.full(len(kp),owner,np.int32)])
+                    url=data.get('next_page') if data.get('has_more') else None
+            except Exception as error:errors.append({'name':name,'error':str(error)})
+        if added:
+            temp=self.index/'library-next.npz';np.savez_compressed(temp,descriptors=self.descriptors,points=self.points,owners=self.owners,cards=np.array(json.dumps(self.cards)))
+            os.replace(temp,self.index/'library.npz');self.train()
+        return {'added':len(added),'cards':[{key:card.get(key,'') for key in ['name','text','type','url']} for card in added],'errors':errors,'referenceCount':len(self.cards)}
 
     def recognize(self,image):
         started=time.perf_counter()
@@ -96,7 +133,12 @@ def main():
         print(json.dumps({'ready':True,'referenceCount':len(recognizer.cards)}),flush=True)
         for line in sys.stdin:
             try:
-                request=json.loads(line);data=base64.b64decode(request['image'],validate=True)
+                request=json.loads(line)
+                if request.get('action')=='add-cards':
+                    print(json.dumps({'requestId':request.get('requestId'),**recognizer.add_cards(request.get('names'))}),flush=True);continue
+                if request.get('action')=='library':
+                    print(json.dumps({'requestId':request.get('requestId'),'cards':[{key:card.get(key,'') for key in ['name','text','type','url']} for card in recognizer.cards]}),flush=True);continue
+                data=base64.b64decode(request['image'],validate=True)
                 if len(data)>4_000_000:raise ValueError('Frame too large')
                 image=cv2.imdecode(np.frombuffer(data,np.uint8),cv2.IMREAD_COLOR)
                 if image is None or image.size>1920*1920*3:raise ValueError('Frame dimensions exceed limit')

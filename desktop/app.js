@@ -91,9 +91,18 @@ $('start').onclick=()=>stream?stopMedia():startMedia();$('mute').onclick=()=>{co
 $('share').onclick=()=>{try{const url=new URL($('link').value);if(!['moxfield.com','www.moxfield.com'].includes(url.hostname)||url.protocol!=='https:'||!url.pathname.startsWith('/decks/'))throw Error();send({type:'chat',text:`${$('deck').value||'My deck'}: ${url.href}`});}catch{status('Enter a valid HTTPS Moxfield deck link.');}};
 $('chat').onsubmit=e=>{e.preventDefault();send({type:'chat',text:$('message').value});$('message').value='';};
 function search(){const query=$('search').value.toLowerCase();$('results').replaceChildren(...cards.filter(c=>c.name.toLowerCase().includes(query)).slice(0,15).map(c=>{const p=el('p');p.append(el('strong',c.name),el('small',c.type),el('span',c.text));return p;}));}
-$('search').oninput=search;fetch('/cards.json').then(r=>r.ok?r.json():[]).then(data=>{cards=data;search();});
+$('search').oninput=search;fetch('/cards.json').then(r=>r.ok?r.json():[]).then(async data=>{cards=data;search();if(window.cardRecognition&&!params.has('test')){try{const library=await cardRecognition.library();cards=[...new Map([...cards,...library.cards].map(card=>[card.name,card])).values()];search();}catch{}}});
 for(const [key,value] of Object.entries(JSON.parse(localStorage.loadout||'{}')))if($(key))$(key).value=value;
 const recognitionPanel=el('section');recognitionPanel.className='recognition';const recognitionButton=el('button','Start card recognition');recognitionButton.id='recognize';const recognitionResults=el('div');recognitionResults.id='recognized';recognitionResults.textContent='Local processing · installed card library';recognitionPanel.append(recognitionButton,recognitionResults);document.querySelector('aside').insertBefore(recognitionPanel,document.querySelector('.references'));
+const libraryDetails=el('details'),librarySummary=el('summary','Add cards to recognition');libraryDetails.append(librarySummary);
+const libraryInput=el('textarea');libraryInput.placeholder='Paste card names or a decklist, one card per line';libraryInput.setAttribute('aria-label','Card names to add');const libraryAdd=el('button','Download card references'),libraryStatus=el('p','Downloads public artwork from Scryfall. Your footage stays on this PC.');libraryDetails.append(libraryInput,libraryAdd,libraryStatus);document.querySelector('.lobby-browser').append(libraryDetails);
+libraryAdd.onclick=async()=>{
+ if(!window.cardRecognition){libraryStatus.textContent='Open the desktop app to manage recognition.';return;}
+ const names=[...new Set(libraryInput.value.split('\n').map(line=>line.trim().replace(/^\d+x?\s+/,'').replace(/\s+\([A-Za-z0-9]+\)\s+\S+.*$/,'')).filter(Boolean))];
+ if(!names.length||names.length>100){libraryStatus.textContent='Enter 1–100 unique card names.';return;}
+ libraryAdd.disabled=true;recognitionOn=false;clearInterval(recognitionTimer);recognitionButton.textContent='Start card recognition';libraryStatus.textContent=`Adding ${names.length} cards and their artwork variants. This may take a few minutes…`;
+ try{const result=await cardRecognition.addCards(names);cards=[...new Map([...cards,...result.cards].map(card=>[card.name,card])).values()];search();libraryStatus.textContent=`Added ${result.added} artwork references. ${result.referenceCount} installed.${result.errors.length?' Could not add: '+result.errors.map(e=>e.name).join(', '):''}`;}catch(error){libraryStatus.textContent=error.message;}finally{libraryAdd.disabled=false;}
+};
 async function recognizeFrame(){
  if(recognitionBusy||!recognitionOn||!state)return;
  const videos=[...document.querySelectorAll('.seat video')].filter(v=>v.videoWidth&&v.readyState>=2);if(!videos.length)return;

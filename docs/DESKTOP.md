@@ -21,7 +21,7 @@ Keep the complete portable folder together; the executable depends on its neighb
 
 The local test adds a quiet synthetic audio tone to each loop. Incoming test players are muted at playback to avoid four-window feedback. Receiving audio packets proves transport, not real microphone quality or acoustic echo cancellation.
 
-Card recognition uses local image features and geometric verification against an installed artwork library. Start it in a room; detections cycle through available video feeds and selecting a detected name opens its reference. Nothing is uploaded for recognition. Current library coverage is limited to the owner's 108 edit-reference card names and alternate artworks. This is not a trained neural model or an exhaustive Magic card library. No-match is an explicit result; accuracy on unseen footage is still being evaluated.
+Card recognition uses local image features and geometric verification against an installed artwork library. Start it in a room; detections cycle through available video feeds and selecting a detected name opens its reference. Nothing is uploaded for recognition. The starter library covers the owner's 108 edit-reference card names and alternate artworks. Expand it using **Add cards to recognition** in the lobby: paste names or a decklist and download public reference artwork from Scryfall. Imports persist in the app's user-data folder. This is not a trained neural model or a preinstalled exhaustive Magic card library. No-match is an explicit result; accuracy on unseen footage is still being evaluated.
 
 To prepare recognition on a development Windows PC:
 
